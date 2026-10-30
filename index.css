@@ -1,0 +1,6 @@
+.k-libvips-upload-notice {
+  margin-bottom: var(--spacing-4);
+  color: var(--color-text-dimmed);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
