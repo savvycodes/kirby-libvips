@@ -1,28 +1,11 @@
 (function () {
-  const maxBytes = 8 * 1024 * 1024;
-  const maxDimension = 4096;
+  const maxBytes = 10 * 1024 * 1024;
 
   async function validateImage(file) {
     const imageExtension = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
     if (!file.type.startsWith("image/") && !imageExtension.test(file.name)) return;
     if (file.size > maxBytes) {
-      throw new Error("De afbeelding is te groot. Verklein deze tot maximaal 8 MiB voordat je uploadt.");
-    }
-    if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name)) return;
-
-    const url = URL.createObjectURL(file);
-    try {
-      const image = new Image();
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = () => reject(new Error("De afbeelding kan niet worden gelezen. Exporteer deze als JPG, PNG, WebP of AVIF."));
-        image.src = url;
-      });
-      if (image.naturalWidth > maxDimension || image.naturalHeight > maxDimension) {
-        throw new Error("De afbeelding is te groot. Verklein deze tot maximaal 4096 × 4096 pixels voordat je uploadt.");
-      }
-    } finally {
-      URL.revokeObjectURL(url);
+      throw new Error("De afbeelding is te groot. Verklein deze tot maximaal 10 MiB voordat je uploadt.");
     }
   }
 

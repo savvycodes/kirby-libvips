@@ -18,7 +18,7 @@ Remove the upstream `bitbetter/kirby-libvips` package before installing this for
 
 ```sh
 composer config repositories.savvycodes-libvips vcs https://github.com/savvycodes/kirby-libvips
-composer require savvycodes/kirby-libvips:1.0.1
+composer require savvycodes/kirby-libvips:1.0.2
 ```
 
 Alternatively, copy this repository to `site/plugins/kirby-libvips` (no Composer autoloader required).
@@ -64,13 +64,12 @@ Thumbnails are generated in hidden staging files next to the destination and pub
 
 Installing this plugin also enables global `file.create:before` and `file.replace:before` hooks:
 
-- Raster images: maximum **8 MiB** and **4096 pixels per side**.
-- SVGs: maximum **8 MiB**, without a raster-dimension check.
+- All images (including SVGs): maximum **10 MiB** (10,485,760 bytes), with **no resolution limit**.
 - Non-images: unaffected.
 
-Server validation reads MIME/header information without decoding a full bitmap. Oversized uploads are rejected with Dutch error messages, not resized; rejected replacements preserve the existing file. Existing oversized originals are not changed.
+Server validation checks MIME and file size without decoding a bitmap or reading its dimensions. Oversized uploads are rejected with Dutch error messages, not resized; rejected replacements preserve the existing file. Existing originals are not changed.
 
-The Kirby 4 Panel integration wraps its central upload method to reject oversized/corrupt raster images **before network transfer**, covering picker, drag/drop and replacement uploads. It uses browser image decoding for dimensions; browser-unsupported formats may be rejected. Server hooks remain authoritative for API uploads and other clients. Interactive Panel smoke testing is recommended before merging/upgrading.
+The Kirby 4 Panel integration wraps its central upload method to reject images over 10 MiB **before network transfer**, covering picker, drag/drop and replacement uploads. It checks file size only, without browser image decoding or format-support checks. Kirby's own file validation still applies. Server hooks remain authoritative for API uploads and other clients. Interactive Panel smoke testing is recommended before merging/upgrading.
 
 Upload limits and bounded conversion concurrency reduce image-processing risk, but do not guarantee the application cannot exhaust host memory. Apache/PHP request concurrency is a separate operational concern.
 
