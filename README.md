@@ -18,7 +18,7 @@ Remove the upstream `bitbetter/kirby-libvips` package before installing this for
 
 ```sh
 composer config repositories.savvycodes-libvips vcs https://github.com/savvycodes/kirby-libvips
-composer require savvycodes/kirby-libvips:1.0.4
+composer require savvycodes/kirby-libvips:1.0.5
 ```
 
 Alternatively, copy this repository to `site/plugins/kirby-libvips` (no Composer autoloader required).
@@ -54,7 +54,7 @@ Additional `thumbs` options:
 | `smartcrop` | `false` | `attention` or `entropy` for plain center crops |
 | `strip` | `true` | Remove thumbnail metadata |
 
-The Kirby thumbnail component serializes generation using a filesystem lock in the PHP temporary directory (one job per container when that directory is private). Lock wait is limited to **10 seconds**. Each conversion has a **60-second total command budget**, with a **5-second kill grace**. Failed requests raise an error and can be retried.
+The Kirby thumbnail component serializes generation using a filesystem lock in the PHP temporary directory (one job per container when that directory is private). Cached thumbnails bypass the lock. Waiting requests also check for newly published output, so duplicate requests can return without waiting for unrelated conversions. Lock wait is limited to **60 seconds**, measured with a monotonic clock, to accommodate bursts of uncached AVIF thumbnails. Each conversion still has a separate **60-second total command budget**, with a **5-second kill grace**. Sustained overload can still exceed the bounded wait; failed requests raise an error and can be retried. Web-server/request timeouts are not changed.
 
 Each command disables the operation cache and sets cache-memory/file hints. These are **not a hard RSS limit**: codecs and native operations may allocate additional memory. No PHP, Apache, container or host memory settings are changed.
 

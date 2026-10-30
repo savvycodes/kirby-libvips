@@ -42,24 +42,43 @@ class Vips extends Darkroom
 		]);
 	}
 
-	public static function withLock(callable $generate): mixed
+	public static function withLock(callable $generate, string|null $target = null): mixed
 	{
+		$cached = static function () use ($target): bool {
+			if ($target === null) {
+				return false;
+			}
+			// Another PHP worker may have atomically published the thumbnail.
+			clearstatcache(true, $target);
+			return is_file($target);
+		};
+		if ($cached()) {
+			return $target;
+		}
 		$lock = fopen(sys_get_temp_dir() . '/kirby-libvips-conversion.lock', 'c');
 		if ($lock === false) {
 			throw new RuntimeException('Cannot open the image conversion lock');
 		}
-		$deadline = microtime(true) + 10;
+		// Cold pages request several different AVIFs at once. Allow a bounded
+		// queue without increasing conversion concurrency or command runtime.
+		$deadline = hrtime(true) + 60_000_000_000;
 		try {
 			do {
+				if ($cached()) {
+					return $target;
+				}
 				if (flock($lock, LOCK_EX | LOCK_NB)) {
 					try {
+						if ($cached()) {
+							return $target;
+						}
 						return $generate();
 					} finally {
 						flock($lock, LOCK_UN);
 					}
 				}
 				usleep(50000);
-			} while (microtime(true) < $deadline);
+			} while (hrtime(true) < $deadline);
 			throw new RuntimeException('Image processing is busy; retry the image request shortly');
 		} finally {
 			fclose($lock);

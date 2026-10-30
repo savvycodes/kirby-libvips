@@ -34,9 +34,6 @@ App::plugin('savvycodes/kirby-libvips', [
 			$root = (new Filename($src, $dst, $options))->toString();
 
 			return Vips::withLock(function () use ($driver, $src, $root, $options) {
-				if (is_file($root)) {
-					return $root;
-				}
 				Dir::make(dirname($root));
 				$staging = dirname($root) . '/.' . F::name($root) . '-' . bin2hex(random_bytes(8)) . '.' . F::extension($root);
 				try {
@@ -51,7 +48,7 @@ App::plugin('savvycodes/kirby-libvips', [
 					F::remove($staging);
 				}
 				return $root;
-			});
+			}, $root);
 		},
 	],
 ]);
