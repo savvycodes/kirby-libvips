@@ -1,6 +1,6 @@
 {
-    "name": "bitbetter/kirby-libvips",
-    "description": "Fast, memory-efficient libvips thumbnail driver for Kirby CMS with in-process (php-vips FFI) and CLI backends",
+    "name": "savvycodes/kirby-libvips",
+    "description": "Bounded CLI libvips thumbnails and image upload safeguards for Kirby CMS",
     "type": "kirby-plugin",
     "license": "MIT",
     "keywords": [
@@ -27,8 +27,5 @@
         "psr-4": {
             "Bitbetter\\Libvips\\": "classes/"
         }
-    },
-    "suggest": {
-        "jcupitt/vips": "In-process thumbnail generation via FFI - eliminates the ~60ms process-spawn cost per thumb"
     }
 }

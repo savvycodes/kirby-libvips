@@ -7,6 +7,8 @@ use Kirby\Filesystem\F;
 use Kirby\Image\Darkroom;
 use Kirby\Image\Focus;
 use Kirby\Image\Image;
+use Kirby\Image\Dimensions;
+use RuntimeException;
 
 /**
  * libvips Darkroom driver
@@ -17,6 +19,53 @@ use Kirby\Image\Image;
  */
 class Vips extends Darkroom
 {
+	private float $deadline;
+
+	public function preprocess(string $file, array $options = []): array
+	{
+		$options = $this->options($options);
+		$image = new Image($file);
+		$width = $image->width();
+		$height = $image->height();
+		$orientation = (int)($image->exif()->data()['Orientation'] ?? 1);
+		if ($options['autoOrient'] && in_array($orientation, [5, 6, 7, 8], true)) {
+			[$width, $height] = [$height, $width];
+		}
+		$dimensions = (new Dimensions($width, $height))->thumb($options);
+		return array_replace($options, [
+			'sourceWidth' => $width,
+			'sourceHeight' => $height,
+			'width' => $dimensions->width(),
+			'height' => $dimensions->height(),
+			'scaleWidth' => Focus::ratio($dimensions->width(), $width),
+			'scaleHeight' => Focus::ratio($dimensions->height(), $height),
+		]);
+	}
+
+	public static function withLock(callable $generate): mixed
+	{
+		$lock = fopen(sys_get_temp_dir() . '/kirby-libvips-conversion.lock', 'c');
+		if ($lock === false) {
+			throw new RuntimeException('Cannot open the image conversion lock');
+		}
+		$deadline = microtime(true) + 10;
+		try {
+			do {
+				if (flock($lock, LOCK_EX | LOCK_NB)) {
+					try {
+						return $generate();
+					} finally {
+						flock($lock, LOCK_UN);
+					}
+				}
+				usleep(50000);
+			} while (microtime(true) < $deadline);
+			throw new RuntimeException('Image processing is busy; retry the image request shortly');
+		} finally {
+			fclose($lock);
+		}
+	}
+
 	/**
 	 * Returns the default thumb settings,
 	 * on top of Kirby's darkroom defaults
@@ -26,9 +75,6 @@ class Vips extends Darkroom
 		return parent::defaults() + [
 			// auto-rotate based on EXIF orientation (vips default)
 			'autoOrient' => true,
-			// 'ffi' (in-process php-vips), 'cli' (vipsthumbnail binary)
-			// or 'auto' to use FFI whenever it is available
-			'backend'    => 'auto',
 			// path to the vipsthumbnail binary
 			'bin'        => 'vipsthumbnail',
 			// generate interlaced (progressive) JPEGs/PNGs
@@ -54,6 +100,7 @@ class Vips extends Darkroom
 	 */
 	public function process(string $file, array $options = []): array
 	{
+		$this->deadline = microtime(true) + 60;
 		$options = $this->preprocess($file, $options);
 
 		// generate into a temp file next to the target so a failed
@@ -63,8 +110,16 @@ class Vips extends Darkroom
 
 		try {
 			$crop  = $options['crop'];
+			// Kirby 4 accepts numeric focal points, not positional names.
+			$positions = [
+				'center' => '50% 50%', 'top' => '50% 0%', 'bottom' => '50% 100%',
+				'left' => '0% 50%', 'right' => '100% 50%',
+				'top left' => '0% 0%', 'top right' => '100% 0%',
+				'bottom left' => '0% 100%', 'bottom right' => '100% 100%',
+			];
+			$point = $crop === true ? '50% 50%' : ($positions[$crop] ?? $crop);
 			$focus = $crop !== false ? Focus::coords(
-				$crop,
+				$point,
 				$options['sourceWidth'],
 				$options['sourceHeight'],
 				$options['width'],
@@ -73,14 +128,12 @@ class Vips extends Darkroom
 
 			$strategy = $focus !== null ? $this->smartcrop($crop, $options) : null;
 
-			if ($this->backend($options) === 'ffi') {
-				$this->processFfi($file, $tmp, $focus, $strategy, $options);
-			} else {
-				$this->processCli($file, $tmp, $focus, $strategy, $options, $temps);
-			}
+			$this->processCli($file, $tmp, $focus, $strategy, $options, $temps);
 
 			// move the finished thumb over the target file
-			F::move($tmp, $file, true);
+			if (F::move($tmp, $file, true) !== true) {
+				throw new RuntimeException('Cannot write the converted image');
+			}
 		} finally {
 			foreach ($temps as $temp) {
 				F::remove($temp);
@@ -88,37 +141,6 @@ class Vips extends Darkroom
 		}
 
 		return $options;
-	}
-
-	/**
-	 * Resolves which backend to use for this job
-	 */
-	protected function backend(array $options): string
-	{
-		return match ($options['backend']) {
-			'ffi', 'cli' => $options['backend'],
-			default      => static::ffiSupported() ? 'ffi' : 'cli'
-		};
-	}
-
-	/**
-	 * Checks once whether in-process php-vips (FFI) is usable
-	 */
-	public static function ffiSupported(): bool
-	{
-		static $supported = null;
-
-		if ($supported === null) {
-			try {
-				$supported =
-					class_exists(\Jcupitt\Vips\Config::class) === true &&
-					is_string(\Jcupitt\Vips\Config::version()) === true;
-			} catch (\Throwable) {
-				$supported = false;
-			}
-		}
-
-		return $supported;
 	}
 
 	/**
@@ -167,92 +189,6 @@ class Vips extends Darkroom
 			$this->exec($this->vipsCommand($op, $work, $dst, $args, $options));
 			$work = $dst;
 		}
-	}
-
-	/**
-	 * Generates the thumb in-process via php-vips (FFI);
-	 * the whole pipeline fuses in memory without any
-	 * process spawns or intermediate files
-	 */
-	protected function processFfi(
-		string $file,
-		string $tmp,
-		array|null $focus,
-		string|null $strategy,
-		array $options
-	): void {
-		$params = ['height' => $options['height']];
-
-		if (is_string($options['profile']) === true) {
-			$params['output-profile'] = $options['profile'];
-		}
-
-		if ($focus !== null && $strategy === null) {
-			// exact crop rectangle: rotate upright, crop in display
-			// space, then shrink the cropped region
-			$image = \Jcupitt\Vips\Image::newFromFile($file);
-
-			if ($options['autoOrient'] === true) {
-				$image = $image->autorot();
-			}
-
-			$image = $image
-				->crop($focus['x1'], $focus['y1'], $focus['width'], $focus['height'])
-				->thumbnail_image($options['width'], $params);
-		} else {
-			if ($strategy !== null) {
-				$params['crop'] = $strategy;
-			}
-
-			if ($options['autoOrient'] === false) {
-				$params['no-rotate'] = true;
-			}
-
-			$image = \Jcupitt\Vips\Image::thumbnail($file, $options['width'], $params);
-		}
-
-		// effects
-		if ($options['grayscale'] === true) {
-			$image = $image->colourspace('b-w');
-		}
-
-		if ($options['blur'] !== false) {
-			$image = $image->gaussblur((int)$options['blur']);
-		}
-
-		if (is_int($options['sharpen']) === true) {
-			$amount = max(1, min(100, $options['sharpen'])) / 100;
-			$image  = $image->sharpen(['sigma' => $amount]);
-		}
-
-		$image->writeToFile($tmp, $this->ffiSaveParams(F::extension($tmp), $options));
-	}
-
-	/**
-	 * Save parameters for php-vips' writeToFile,
-	 * mirroring the CLI save option string
-	 */
-	protected function ffiSaveParams(string $extension, array $options): array
-	{
-		$extension = strtolower($extension);
-		$params    = [];
-
-		if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tif', 'tiff'], true) === true) {
-			$params['Q'] = $options['quality'];
-		}
-
-		if ($options['strip'] === true) {
-			$params['keep'] = 'none';
-		}
-
-		if (
-			$options['interlace'] === true &&
-			in_array($extension, ['jpg', 'jpeg', 'png'], true) === true
-		) {
-			$params['interlace'] = true;
-		}
-
-		return $params;
 	}
 
 	/**
@@ -349,6 +285,13 @@ class Vips extends Darkroom
 	 */
 	protected function exec(string $command): void
 	{
+		$remaining = $this->deadline - microtime(true);
+		if ($remaining <= 0) {
+			throw new RuntimeException('Image conversion exceeded its 60-second deadline');
+		}
+		// Operation-cache settings are not a hard RSS cap; codecs allocate more.
+		$command = 'timeout --kill-after=5s ' . escapeshellarg(sprintf('%.3fs', $remaining)) .
+			' ' . $command . ' --vips-cache-max=0 --vips-cache-max-memory=33554432 --vips-cache-max-files=16';
 		exec($command . ' 2>&1', $output, $return);
 
 		if ($return !== 0) {
@@ -366,8 +309,8 @@ class Vips extends Darkroom
 	protected function needsAutoRotation(string $file): bool
 	{
 		try {
-			$orientation = (new Image($file))->exif()->orientation();
-			return is_int($orientation) === true && $orientation > 1;
+			$orientation = (new Image($file))->exif()->data()['Orientation'] ?? 1;
+			return (int)$orientation > 1;
 		} catch (Exception) {
 			return false;
 		}
@@ -418,7 +361,7 @@ class Vips extends Darkroom
 		}
 
 		// content-aware cropping for plain center crops if configured
-		if ($crop === 'center') {
+		if ($crop === 'center' || $crop === true) {
 			return match ($options['smartcrop']) {
 				'attention' => 'attention',
 				'entropy'   => 'entropy',
@@ -457,7 +400,7 @@ class Vips extends Darkroom
 		}
 
 		if (is_string($options['profile']) === true) {
-			$command .= ' --output-profile ' . escapeshellarg($options['profile']);
+			$command .= ' --export-profile ' . escapeshellarg($options['profile']);
 		}
 
 		$save = $this->saveOptions(F::extension($dst), $options);
