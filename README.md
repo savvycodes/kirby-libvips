@@ -18,7 +18,7 @@ Remove the upstream `bitbetter/kirby-libvips` package before installing this for
 
 ```sh
 composer config repositories.savvycodes-libvips vcs https://github.com/savvycodes/kirby-libvips
-composer require savvycodes/kirby-libvips:1.0.3
+composer require savvycodes/kirby-libvips:1.0.4
 ```
 
 Alternatively, copy this repository to `site/plugins/kirby-libvips` (no Composer autoloader required).

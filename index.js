@@ -29,7 +29,7 @@
         }));
       }
     }],
-    created: [function (app) {
+    created: function (app) {
       const uploader = app.$panel.upload;
       const createFile = uploader.file;
       uploader.file = function (source) {
@@ -52,6 +52,6 @@
         }
         return upload.call(this, file, attributes);
       };
-    }]
+    }
   });
 })();
