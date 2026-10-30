@@ -5,7 +5,7 @@
     const imageExtension = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
     if (!file.type.startsWith("image/") && !imageExtension.test(file.name)) return;
     if (file.size > maxBytes) {
-      throw new Error("De afbeelding is te groot. Verklein deze tot maximaal 10 MiB voordat je uploadt.");
+      throw new Error(window.panel.$t("savvycodes.libvips.upload.tooLarge"));
     }
   }
 
@@ -21,7 +21,7 @@
             const content = dialog.componentOptions || dialog;
             content.children = [
               h("p", { class: "k-libvips-upload-notice", attrs: { role: "note" } },
-                "Afbeeldingen: maximaal 10 MiB per bestand."),
+                this.$t("savvycodes.libvips.upload.notice")),
               ...(content.children || [])
             ];
             return dialog;

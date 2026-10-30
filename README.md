@@ -18,7 +18,7 @@ Remove the upstream `bitbetter/kirby-libvips` package before installing this for
 
 ```sh
 composer config repositories.savvycodes-libvips vcs https://github.com/savvycodes/kirby-libvips
-composer require savvycodes/kirby-libvips:1.0.5
+composer require savvycodes/kirby-libvips:1.0.6
 ```
 
 Alternatively, copy this repository to `site/plugins/kirby-libvips` (no Composer autoloader required).
@@ -67,11 +67,17 @@ Installing this plugin also enables global `file.create:before` and `file.replac
 - All images (including SVGs): maximum **10 MiB** (10,485,760 bytes), with **no resolution limit**.
 - Non-images: unaffected.
 
-Server validation checks MIME and file size without decoding a bitmap or reading its dimensions. Oversized uploads are rejected with Dutch error messages, not resized; rejected replacements preserve the existing file. Existing originals are not changed.
+Server validation checks MIME and file size without decoding a bitmap or reading its dimensions. Oversized uploads are rejected with localized error messages, not resized; rejected replacements preserve the existing file. Existing originals are not changed.
 
 The Kirby 4 Panel integration shows a **10 MiB per image** notice in upload and replacement dialogs and flags oversized images immediately on selection/drop. It also wraps the central upload method to reject images over 10 MiB **before network transfer**, covering picker, drag/drop and replacement uploads. It checks file size only, without browser image decoding or format-support checks. Kirby's own file validation still applies. Server hooks remain authoritative for API uploads and other clients. Interactive Panel smoke testing is recommended before merging/upgrading.
 
 Upload limits and bounded conversion concurrency reduce image-processing risk, but do not guarantee the application cannot exhaust host memory. Apache/PHP request concurrency is a separate operational concern.
+
+## Translations
+
+All plugin messages use Kirby's translation system, with **English** as the default/fallback and **Dutch** (`nl`) included. Panel notices and pre-transfer errors follow the Panel language; server-side upload and conversion errors use Kirby's active locale. No site language or user language is forced by the plugin.
+
+Translations are registered from `translations/en.php` and `translations/nl.php`. Additional locales or site-specific wording can use Kirby's normal translation overrides with the `savvycodes.libvips.*` keys. Upload limits and conversion behavior are identical in every language.
 
 ## License
 

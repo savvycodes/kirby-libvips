@@ -4,6 +4,7 @@ namespace Bitbetter\Libvips;
 
 use Kirby\Exception\InvalidArgumentException;
 use Kirby\Filesystem\F;
+use Kirby\Toolkit\I18n;
 
 final class UploadPolicy
 {
@@ -17,7 +18,7 @@ final class UploadPolicy
 			return;
 		}
 		if (filesize($path) > self::MAX_BYTES) {
-			throw new InvalidArgumentException('De afbeelding is te groot. Verklein deze tot maximaal 10 MiB voordat je uploadt.');
+			throw new InvalidArgumentException(I18n::translate('savvycodes.libvips.upload.tooLarge'));
 		}
 	}
 }

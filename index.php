@@ -7,6 +7,7 @@ use Bitbetter\Libvips\UploadPolicy;
 use Kirby\Filesystem\Dir;
 use Kirby\Filesystem\F;
 use Kirby\Filesystem\Filename;
+use Kirby\Toolkit\I18n;
 
 if (class_exists(Vips::class) === false) {
 	require_once __DIR__ . '/classes/Vips.php';
@@ -19,6 +20,10 @@ Darkroom::$types['vips'] ??= Vips::class;
 Darkroom::$types['vipsthumbnail'] ??= Vips::class;
 
 App::plugin('savvycodes/kirby-libvips', [
+	'translations' => [
+		'en' => require __DIR__ . '/translations/en.php',
+		'nl' => require __DIR__ . '/translations/nl.php',
+	],
 	'hooks' => [
 		'file.create:before' => function ($file, $upload) {
 			UploadPolicy::validate($upload->root());
@@ -38,11 +43,11 @@ App::plugin('savvycodes/kirby-libvips', [
 				$staging = dirname($root) . '/.' . F::name($root) . '-' . bin2hex(random_bytes(8)) . '.' . F::extension($root);
 				try {
 					if (F::copy($src, $staging) !== true) {
-						throw new RuntimeException('Cannot stage the thumbnail');
+						throw new RuntimeException(I18n::translate('savvycodes.libvips.error.stage'));
 					}
 					$driver->process($staging, $options);
 					if (rename($staging, $root) !== true) {
-						throw new RuntimeException('Cannot publish the thumbnail');
+						throw new RuntimeException(I18n::translate('savvycodes.libvips.error.publish'));
 					}
 				} finally {
 					F::remove($staging);

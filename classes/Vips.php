@@ -8,6 +8,7 @@ use Kirby\Image\Darkroom;
 use Kirby\Image\Focus;
 use Kirby\Image\Image;
 use Kirby\Image\Dimensions;
+use Kirby\Toolkit\I18n;
 use RuntimeException;
 
 /**
@@ -57,7 +58,7 @@ class Vips extends Darkroom
 		}
 		$lock = fopen(sys_get_temp_dir() . '/kirby-libvips-conversion.lock', 'c');
 		if ($lock === false) {
-			throw new RuntimeException('Cannot open the image conversion lock');
+			throw new RuntimeException(I18n::translate('savvycodes.libvips.error.lock'));
 		}
 		// Cold pages request several different AVIFs at once. Allow a bounded
 		// queue without increasing conversion concurrency or command runtime.
@@ -79,7 +80,7 @@ class Vips extends Darkroom
 				}
 				usleep(50000);
 			} while (hrtime(true) < $deadline);
-			throw new RuntimeException('Image processing is busy; retry the image request shortly');
+			throw new RuntimeException(I18n::translate('savvycodes.libvips.error.busy'));
 		} finally {
 			fclose($lock);
 		}
@@ -151,7 +152,7 @@ class Vips extends Darkroom
 
 			// move the finished thumb over the target file
 			if (F::move($tmp, $file, true) !== true) {
-				throw new RuntimeException('Cannot write the converted image');
+				throw new RuntimeException(I18n::translate('savvycodes.libvips.error.write'));
 			}
 		} finally {
 			foreach ($temps as $temp) {
@@ -306,7 +307,7 @@ class Vips extends Darkroom
 	{
 		$remaining = $this->deadline - microtime(true);
 		if ($remaining <= 0) {
-			throw new RuntimeException('Image conversion exceeded its 60-second deadline');
+			throw new RuntimeException(I18n::translate('savvycodes.libvips.error.deadline'));
 		}
 		// Operation-cache settings are not a hard RSS cap; codecs allocate more.
 		$command = 'timeout --kill-after=5s ' . escapeshellarg(sprintf('%.3fs', $remaining)) .
@@ -315,8 +316,10 @@ class Vips extends Darkroom
 
 		if ($return !== 0) {
 			throw new Exception(
-				'The vips command could not be executed: ' . $command .
-				' (' . trim(implode("\n", $output)) . ')'
+				I18n::template('savvycodes.libvips.error.command', [
+					'command' => $command,
+					'output' => trim(implode("\n", $output)),
+				])
 			);
 		}
 	}
