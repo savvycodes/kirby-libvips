@@ -49,12 +49,17 @@ Additional `thumbs` options:
 | `bin` | `vipsthumbnail` | Thumbnail binary |
 | `vipsBin` | `vips` | Binary used for crops/effects |
 | `threads` | `1` | libvips processing threads per command |
+| `avifEffort` | `2` | AVIF encoder effort, integer `0`–`9`; higher values spend more CPU on compression |
 | `profile` | `srgb` | Export profile; use `false` to disable |
 | `interlace` | `false` | Progressive JPEG/PNG output |
 | `smartcrop` | `false` | `attention` or `entropy` for plain center crops |
 | `strip` | `true` | Remove thumbnail metadata |
 
 The Kirby thumbnail component serializes generation using a filesystem lock in the PHP temporary directory (one job per container when that directory is private). Cached thumbnails bypass the lock. Waiting requests also check for newly published output, so duplicate requests can return without waiting for unrelated conversions. Lock wait is limited to **60 seconds**, measured with a monotonic clock, to accommodate bursts of uncached AVIF thumbnails. Each conversion still has a separate **60-second total command budget**, with a **5-second kill grace**. Sustained overload can still exceed the bounded wait; failed requests raise an error and can be retried. Web-server/request timeouts are not changed.
+
+AVIF output explicitly uses encoder effort **2** instead of libvips' default **4** to reduce on-demand encoding time. The requested `quality`, bit depth and other formats are unchanged. Lower effort changes the encoder's compression tradeoff; benchmark representative images if file size or visual quality is critical. Set `thumbs.avifEffort` to `4` to restore the previous effort. Existing cached thumbnails are not regenerated.
+
+Failed commands include their exit status, elapsed command time and remaining command budget in the localized exception; the exception code also carries the exit status. GNU `timeout` normally returns **124** when its deadline expires; **137** indicates a SIGKILL exit (including a possible kill after the grace period), not proof of an OOM kill. Other nonzero statuses and captured command output remain visible. These diagnostics do not suppress errors or add a fallback.
 
 Each command disables the operation cache and sets cache-memory/file hints. These are **not a hard RSS limit**: codecs and native operations may allocate additional memory. No PHP, Apache, container or host memory settings are changed.
 

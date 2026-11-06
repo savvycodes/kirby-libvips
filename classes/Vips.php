@@ -3,6 +3,7 @@
 namespace Bitbetter\Libvips;
 
 use Exception;
+use InvalidArgumentException;
 use Kirby\Filesystem\F;
 use Kirby\Image\Darkroom;
 use Kirby\Image\Focus;
@@ -108,6 +109,8 @@ class Vips extends Darkroom
 			'strip'      => true,
 			// number of threads vips may use
 			'threads'    => 1,
+			// bound AVIF encoder work without lowering the requested quality
+			'avifEffort' => 2,
 			// path to the vips binary (used for exact focus crops)
 			'vipsBin'    => 'vips',
 		];
@@ -312,14 +315,20 @@ class Vips extends Darkroom
 		// Operation-cache settings are not a hard RSS cap; codecs allocate more.
 		$command = 'timeout --kill-after=5s ' . escapeshellarg(sprintf('%.3fs', $remaining)) .
 			' ' . $command . ' --vips-cache-max=0 --vips-cache-max-memory=33554432 --vips-cache-max-files=16';
+		$started = hrtime(true);
 		exec($command . ' 2>&1', $output, $return);
+		$elapsed = (hrtime(true) - $started) / 1_000_000_000;
 
 		if ($return !== 0) {
 			throw new Exception(
 				I18n::template('savvycodes.libvips.error.command', [
 					'command' => $command,
 					'output' => trim(implode("\n", $output)),
-				])
+					'exitCode' => $return,
+					'elapsed' => sprintf('%.3f', $elapsed),
+					'budget' => sprintf('%.3f', $remaining),
+				]),
+				$return
 			);
 		}
 	}
@@ -355,6 +364,14 @@ class Vips extends Darkroom
 		// quality for formats with lossy (or quantized) encoders
 		if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tif', 'tiff'], true) === true) {
 			$save[] = 'Q=' . $options['quality'];
+		}
+
+		if ($extension === 'avif') {
+			$effort = $options['avifEffort'];
+			if (is_int($effort) === false || $effort < 0 || $effort > 9) {
+				throw new InvalidArgumentException(I18n::translate('savvycodes.libvips.error.avifEffort'));
+			}
+			$save[] = 'effort=' . $effort;
 		}
 
 		if ($options['strip'] === true) {
