@@ -9,5 +9,6 @@ return [
 	'savvycodes.libvips.error.stage' => 'Het tijdelijke bestand voor de miniatuur kan niet worden aangemaakt',
 	'savvycodes.libvips.error.publish' => 'De miniatuur kan niet worden gepubliceerd',
 	'savvycodes.libvips.error.deadline' => 'De afbeeldingsverwerking heeft de tijdslimiet van 60 seconden overschreden',
-	'savvycodes.libvips.error.command' => 'Het vips-commando kon niet worden uitgevoerd: {command} ({output})',
+	'savvycodes.libvips.error.command' => 'Het vips-commando is mislukt (exitcode {exitCode}, verstreken {elapsed}s, commandotijdslimiet {budget}s): {command} ({output})',
+	'savvycodes.libvips.error.avifEffort' => 'De AVIF-encoderinspanning moet een geheel getal tussen 0 en 9 zijn',
 ];

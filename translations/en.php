@@ -9,5 +9,6 @@ return [
 	'savvycodes.libvips.error.stage' => 'Cannot stage the thumbnail',
 	'savvycodes.libvips.error.publish' => 'Cannot publish the thumbnail',
 	'savvycodes.libvips.error.deadline' => 'Image conversion exceeded its 60-second deadline',
-	'savvycodes.libvips.error.command' => 'The vips command could not be executed: {command} ({output})',
+	'savvycodes.libvips.error.command' => 'The vips command failed (exit code {exitCode}, elapsed {elapsed}s, command budget {budget}s): {command} ({output})',
+	'savvycodes.libvips.error.avifEffort' => 'AVIF encoding effort must be an integer between 0 and 9',
 ];
