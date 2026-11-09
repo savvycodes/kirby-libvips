@@ -38,22 +38,43 @@ App::plugin('savvycodes/kirby-libvips', [
 			$options = $driver->preprocess($src, $options);
 			$root = (new Filename($src, $dst, $options))->toString();
 
-			return Vips::withLock(function () use ($driver, $src, $root, $options) {
-				Dir::make(dirname($root));
-				$staging = dirname($root) . '/.' . F::name($root) . '-' . bin2hex(random_bytes(8)) . '.' . F::extension($root);
-				try {
-					if (F::copy($src, $staging) !== true) {
-						throw new RuntimeException(I18n::translate('savvycodes.libvips.error.stage'));
-					}
-					$driver->process($staging, $options);
-					if (rename($staging, $root) !== true) {
-						throw new RuntimeException(I18n::translate('savvycodes.libvips.error.publish'));
-					}
-				} finally {
-					F::remove($staging);
-				}
+			clearstatcache(true, $root);
+			if (is_file($root)) {
 				return $root;
-			}, $root);
+			}
+
+			// Publishing/reordering a page can move its content directory while
+			// this request waits for the conversion lock. Keep an independent copy
+			// outside content/media, where Kirby's cleanup cannot remove it.
+			$snapshot = tmpfile();
+			if ($snapshot === false) {
+				throw new RuntimeException(I18n::translate('savvycodes.libvips.error.stage'));
+			}
+			try {
+				$source = stream_get_meta_data($snapshot)['uri'];
+				if (F::copy($src, $source, true) !== true) {
+					throw new RuntimeException(I18n::translate('savvycodes.libvips.error.stage'));
+				}
+
+				return Vips::withLock(function () use ($driver, $source, $root, $options) {
+					Dir::make(dirname($root));
+					$staging = dirname($root) . '/.' . F::name($root) . '-' . bin2hex(random_bytes(8)) . '.' . F::extension($root);
+					try {
+						if (F::copy($source, $staging) !== true) {
+							throw new RuntimeException(I18n::translate('savvycodes.libvips.error.stage'));
+						}
+						$driver->process($staging, $options);
+						if (rename($staging, $root) !== true) {
+							throw new RuntimeException(I18n::translate('savvycodes.libvips.error.publish'));
+						}
+					} finally {
+						F::remove($staging);
+					}
+					return $root;
+				}, $root);
+			} finally {
+				fclose($snapshot);
+			}
 		},
 	],
 ]);
