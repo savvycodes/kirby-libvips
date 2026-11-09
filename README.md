@@ -63,7 +63,9 @@ Failed commands include their exit status, elapsed command time and remaining co
 
 Each command disables the operation cache and sets cache-memory/file hints. These are **not a hard RSS limit**: codecs and native operations may allocate additional memory. No PHP, Apache, container or host memory settings are changed.
 
-Thumbnails are generated in hidden staging files next to the destination and published by atomic rename only after success. Failures clean up staging/intermediate files rather than publishing an unprocessed original. Existing thumbnail URLs/cache and source originals are preserved; there is no cache reset or original migration. The plugin overrides Kirby's `thumb` component; do not combine it with another plugin that overrides the same component.
+Uncached requests copy the source into a private PHP temporary file **before waiting for the conversion lock**. This keeps queued conversions independent of content-directory moves and media cleanup when a page is published or reordered. Cached thumbnails skip this copy. The snapshot is closed and removed after success, a cache hit while waiting, or any failure (including a lock timeout). Queued requests temporarily need disk space for their source copies; conversion concurrency is unchanged.
+
+Thumbnails are generated from that snapshot in hidden staging files next to the destination and published by atomic rename only after success. Failures clean up snapshots and staging/intermediate files rather than publishing an unprocessed original. Existing thumbnail URLs/cache and source originals are preserved; there is no cache reset or original migration. The plugin overrides Kirby's `thumb` component; do not combine it with another plugin that overrides the same component.
 
 ## Image upload policy
 
